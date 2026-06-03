@@ -2,9 +2,19 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="Finances", page_icon="💰", layout="centered")
+# Configure page layout to wide mode for a premium tech dashboard feel
+st.set_page_config(page_title="FinFlow Dashboard", page_icon="💸", layout="wide")
 
-# 1. Initialize Supabase Connection using Streamlit Secrets
+# Custom CSS styling injection to clean up margins and enhance typography metrics
+st.markdown("""
+    <style>
+    .main .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+    h1, h2, h3 { font-weight: 700 !important; color: #1E293B; }
+    .stMetric { background-color: #F8FAFC; padding: 15px; border-radius: 10px; border: 1px solid #E2E8F0; }
+    </style>
+""", unsafe_allow_html=True)
+
+# 1. Initialize Supabase Connection
 @st.cache_resource
 def init_connection():
     from supabase import create_client, Client
@@ -15,92 +25,129 @@ def init_connection():
 try:
     supabase = init_connection()
 except Exception as e:
-    st.error("Could not connect to database. Check your Secrets configuration.")
+    st.error("Authentication Error. Check your GitHub deployment secrets configuration mapping.")
     st.stop()
 
-st.title("📊 Auto-Debit Control Center")
+# 2. Sidebar Navigation and Historical Month Selector Matrix
+st.sidebar.title("🎯 Control Center Navigation")
+st.sidebar.markdown("---")
 
-# Get current month parameters
-current_month = datetime.now().strftime("%Y-%m")
-st.caption(f"Tracking Window: **{datetime.now().strftime('%B %Y')}**")
+# Dynamic generation of accessible historical billing target windows
+available_months = ["2026-06", "2026-05", "2026-04", "2026-03", "2026-02", "2026-01"]
+selected_month = st.sidebar.selectbox("📅 Select Billing Window Cycle", available_months, index=0)
 
-# 2. Fetch Data from Supabase
-@st.cache_data(ttl=10) # Cache data for 10 seconds to keep app snappy
-def load_data():
-    master = supabase.table("recurring_debits").select("*").execute().data
-    # Changed .filter() to .eq()
-    logs = supabase.table("debit_logs").select("*").eq("billing_month", current_month).execute().data
-    return pd.DataFrame(master), pd.DataFrame(logs)
+# Display context parameters
+parsed_date = datetime.strptime(selected_month, "%Y-%m")
+st.title("💸 FinFlow Executive Control Center")
+st.caption(f"Active Monitoring Accounting Window: **{parsed_date.strftime('%B %Y')}**")
+st.markdown("---")
 
-df_master, df_logs = load_data()
+# 3. Fetch Real-time Database Records from Supabase Core Ledger Tables
+@st.cache_data(ttl=5) # 5-second cash refresh loop keeps the mobile interaction responsive
+def fetch_financial_state_matrices(target_month):
+    master_data = supabase.table("recurring_debits").select("*").execute().data
+    logs_data = supabase.table("debit_logs").filter("billing_month", "eq", target_month).execute().data
+    return pd.DataFrame(master_data), pd.DataFrame(logs_data)
 
-# Handle empty state dataframes gracefully
+df_master, df_logs = fetch_financial_state_matrices(selected_month)
+
+# Gracefully intercept initialization edge cases
 if df_master.empty:
-    st.warning("No recurring rules found. Seed your master database table first.")
+    st.warning("Database configuration discrepancy detected: Your `recurring_debits` master map is blank.")
     st.stop()
 
 if df_logs.empty:
-    df_logs = pd.DataFrame(columns=['title', 'amount', 'bank_account', 'paid_at'])
+    df_logs = pd.DataFrame(columns=['title', 'amount', 'bank_account', 'paid_at', 'billing_month'])
 
-# 3. Core Data Processing Logic
-paid_titles = df_logs['title'].tolist() if not df_logs.empty else []
+# 4. Cash Aggregation Operations and Mathematical Formulations
+# Clean and normalise strings for programmatic execution tracking
+df_master['clean_title'] = df_master['title'].apply(lambda x: x.split('|')[0].strip())
+paid_titles_list = df_logs['title'].str.strip().tolist() if not df_logs.empty else []
 
-# Filter master list into Paid vs Pending categories
-df_pending = df_master[~df_master['title'].isin(paid_titles)].copy()
-df_paid_current = df_master[df_master['title'].isin(paid_titles)].copy()
+# Segment datasets into paid vs outstanding buckets
+df_pending = df_master[~df_master['clean_title'].isin(paid_titles_list)].copy()
+df_paid_current = df_master[df_master['clean_title'].isin(paid_titles_list)].copy()
 
-total_outflow = df_master['amount'].sum()
-total_paid = df_logs['amount'].sum() if not df_logs.empty else 0
-total_pending = total_outflow - total_paid
+# Compute high-level analytical performance summary indicators
+total_outflow_target = df_master['amount'].sum()
+total_actual_paid = df_logs['amount'].sum() if not df_logs.empty else 0
+total_remaining_pending = max(0, total_outflow_target - total_actual_paid)
+funding_completion_percentage = min(100, int((total_actual_paid / total_outflow_target) * 100)) if total_outflow_target > 0 else 0
 
-# 4. KPI Summary Panel Block
-col1, col2, col3 = st.columns(3)
-col1.metric("Total Bill Commit", f"₹{total_outflow:,}")
-col2.metric("Funded (Paid) ✅", f"₹{total_paid:,}", delta=f"{int((total_paid/total_outflow)*100)}% done" if total_outflow > 0 else None)
-col3.metric("Awaiting Cash 🚨", f"₹{total_pending:,}", delta=f"-₹{total_pending:,}" if total_pending > 0 else None, delta_color="inverse")
+# 5. Core UI Component Rendering Area
+# Card metrics display block
+m1, m2, m3 = st.columns(3)
+m1.metric("Total Monthly Commitment", f"₹{total_outflow_target:,}")
+m2.metric("Cleared Logs (Paid) ✅", f"₹{total_actual_paid:,}", f"{funding_completion_percentage}% of goal")
+m3.metric("Awaiting Allocation 🚨", f"₹{total_remaining_pending:,}", delta=f"-₹{total_remaining_pending:,}" if total_remaining_pending > 0 else None, delta_color="inverse")
 
-st.divider()
+# Visual progress meter bar layout
+st.markdown(f"**Monthly Capital Funding Runway Progress:** {funding_completion_percentage}%")
+st.progress(funding_completion_percentage / 100)
+st.markdown("---")
 
-# 5. Bank Account Cash Allocation Breakdown
-st.subheader("🏦 Necessary Cash Allocation by Bank")
-bank_summary = []
+# 6. Advanced Charting Layout Workspace Blocks (Two-Column Presentation Grid)
+chart_col1, chart_col2 = st.columns(2)
 
-# Group and calculate targets per bank account
+with chart_col1:
+    st.subheader("📊 Capital Structure Diversification")
+    # Generate native Streamlit categorical allocation distribution metric graphs
+    category_mix = df_master.groupby('category')['amount'].sum().reset_index()
+    st.bar_chart(data=category_mix, x='category', y='amount', use_container_width=True)
+
+with chart_col2:
+    st.subheader("🏛️ Net Outflow Breakdown per Bank Entity")
+    # Visualizing allocation loads across HDFC and Canara Bank
+    bank_mix = df_master.groupby('bank_account')['amount'].sum().reset_index()
+    st.bar_chart(data=bank_mix, x='bank_account', y='amount', color="#3B82F6", use_container_width=True)
+
+st.markdown("---")
+
+# 7. Cash Allocation Accounting Balance Table Block
+st.subheader("🏦 Liquidity Requirements Matrix per Clearing Bank")
+bank_allocation_ledger = []
+
 for bank, group in df_master.groupby('bank_account'):
-    bank_master_total = group['amount'].sum()
-    bank_paid = df_logs[df_logs['bank_account'] == bank]['amount'].sum() if not df_logs.empty else 0
-    bank_pending = bank_master_total - bank_paid
-    bank_summary.append({
-        "Bank Account": bank,
-        "Total Target": f"₹{bank_master_total:,}",
-        "Cleared (Paid)": f"₹{bank_paid:,}",
-        "Required Balance (Pending)": f"₹{bank_pending:,}"
+    theoretical_total_target = group['amount'].sum()
+    actual_cleared_logs = df_logs[df_logs['bank_account'].str.lower() == bank.lower()]['amount'].sum() if not df_logs.empty else 0
+    net_outstanding_balance_required = max(0, theoretical_total_target - actual_cleared_logs)
+    
+    bank_allocation_ledger.append({
+        "Clearing Bank Node": bank,
+        "Total Target Debt Load": f"₹{theoretical_total_target:,}",
+        "Settled Funds": f"₹{actual_cleared_logs:,}",
+        "Mandatory Liquidity Balance Needed": f"₹{net_outstanding_balance_required:,}"
     })
 
-st.table(pd.DataFrame(bank_summary))
+st.table(pd.DataFrame(bank_allocation_ledger))
+st.markdown("---")
 
-# 6. Immediate Action Items
-st.subheader("🚨 Action Items Needed Soon")
-if df_pending.empty:
-    st.success("All bank accounts are completely safe and funded for this month!")
-else:
-    # Sort pending items chronologically by due day
-    df_pending_sorted = df_pending.sort_values(by='due_day')
-    for _, row in df_pending_sorted.iterrows():
-        # High alert if due day is within next 3 days
-        current_day = datetime.now().day
-        is_urgent = 0 <= (row['due_day'] - current_day) <= 3
+# 8. Time-Series Timeline Queue and Historical Logs Grid Blocks
+queue_col, history_col = st.columns(2)
+
+with queue_col:
+    st.subheader("⏳ Pending Time-Series Clearance Queue")
+    if df_pending.empty:
+        st.success("Operational compliance complete: Liquidity safe across all banking nodes for this cycle!")
+    else:
+        df_pending_sorted = df_pending.sort_values(by='due_day')
+        current_calendar_day = datetime.now().day
         
-        item_text = f"**Due on Day {row['due_day']}**: {row['title']} | **₹{row['amount']:,}** via {row['bank_account']}"
-        if is_urgent:
-            st.error(f"⚠️ {item_text} (CRITICAL WINDOW)")
-        else:
-            st.info(item_text)
+        for _, row in df_pending_sorted.iterrows():
+            # Flag item with high alert styling if due date lands within an active 3-day buffer window
+            is_critical = 0 <= (row['due_day'] - current_calendar_day) <= 3 and selected_month == datetime.now().strftime("%Y-%m")
+            display_string = f"**Day {row['due_day']} due date**: {row['clean_title']} — **₹{row['amount']:,}** via {row['bank_account']}"
+            
+            if is_critical:
+                st.error(f"⚠️ {display_string} [CRITICAL FUNDING WINDOW RUNNING SHORT]")
+            else:
+                st.info(display_string)
 
-# 7. Completed Logs Ledger
-st.subheader("📜 Historical Monthly Clearance Ledger")
-if df_logs.empty:
-    st.caption("No payments logged yet for this billing cycle.")
-else:
-    for _, row in df_logs.sort_values(by='paid_at', ascending=False).iterrows():
-        st.text(f"✔️ {row['paid_at'][:16]} — {row['title']} (₹{row['amount']:,}) from {row['bank_account']} recorded.")
+with history_col:
+    st.subheader("📜 System Audit Transaction Logs Ledger")
+    if df_logs.empty:
+        st.caption("No historical transaction execution records tracked within this structural month parameter context.")
+    else:
+        df_logs_sorted = df_logs.sort_values(by='paid_at', ascending=False)
+        for _, row in df_logs_sorted.iterrows():
+            st.caption(f"✔️ **{row['paid_at'][:16]}** — Clr: {row['title']} | Amount: **₹{row['amount']:,}** out of {row['bank_account']}")
