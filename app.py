@@ -28,7 +28,8 @@ st.caption(f"Tracking Window: **{datetime.now().strftime('%B %Y')}**")
 @st.cache_data(ttl=10) # Cache data for 10 seconds to keep app snappy
 def load_data():
     master = supabase.table("recurring_debits").select("*").execute().data
-    logs = supabase.table("debit_logs").filter("billing_month", "eq", current_month).execute().data
+    # Changed .filter() to .eq()
+    logs = supabase.table("debit_logs").select("*").eq("billing_month", current_month).execute().data
     return pd.DataFrame(master), pd.DataFrame(logs)
 
 df_master, df_logs = load_data()
