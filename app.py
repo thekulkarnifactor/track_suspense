@@ -6,11 +6,29 @@ from datetime import datetime
 st.set_page_config(page_title="FinFlow Dashboard", page_icon="💸", layout="wide")
 
 # Custom CSS styling injection to clean up margins and enhance typography metrics
+# Custom CSS styling injection to fix text visibility inside metric cards
 st.markdown("""
     <style>
     .main .block-container { padding-top: 2rem; padding-bottom: 2rem; }
     h1, h2, h3 { font-weight: 700 !important; color: #1E293B; }
-    .stMetric { background-color: #F8FAFC; padding: 15px; border-radius: 10px; border: 1px solid #E2E8F0; }
+    
+    /* Force high visibility for Streamlit Metric Cards */
+    div[data-testid="stMetric"] {
+        background-color: #F8FAFC !important; 
+        padding: 15px; 
+        border-radius: 10px; 
+        border: 1px solid #E2E8F0 !important;
+    }
+    /* Force metric label (title) text color */
+    div[data-testid="stMetricLabel"] > div {
+        color: #475569 !important;
+        font-weight: 600 !important;
+    }
+    /* Force metric value (big number) text color */
+    div[data-testid="stMetricValue"] > div {
+        color: #0F172A !important;
+        font-weight: 700 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
