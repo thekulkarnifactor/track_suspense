@@ -46,7 +46,8 @@ st.markdown("---")
 @st.cache_data(ttl=5) # 5-second cash refresh loop keeps the mobile interaction responsive
 def fetch_financial_state_matrices(target_month):
     master_data = supabase.table("recurring_debits").select("*").execute().data
-    logs_data = supabase.table("debit_logs").filter("billing_month", "eq", target_month).execute().data
+    # FIX: Changed .filter("billing_month", "eq", target_month) to .select("*").eq()
+    logs_data = supabase.table("debit_logs").select("*").eq("billing_month", target_month).execute().data
     return pd.DataFrame(master_data), pd.DataFrame(logs_data)
 
 df_master, df_logs = fetch_financial_state_matrices(selected_month)
